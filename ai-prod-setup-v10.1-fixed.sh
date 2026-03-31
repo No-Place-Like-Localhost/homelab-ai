@@ -471,7 +471,7 @@ mkdir -p "$AGENT0_DATA_DIR"/{memory,knowledge,instruments,prompts,work_dir}
 cd "$AI_STACK_DIR" || exit 1
 
 # Dynamic memory allocation
-TOTAL_RAM_GB=$(free -g | awk '/Mem:/ {print $2}')
+TOTAL_RAM_GB="$(free -g | awk '/Mem:/ {print $2}')"
 OLLAMA_MEM="4G"
 if (( TOTAL_RAM_GB >= 16 )); then OLLAMA_MEM="8G"; fi
 if (( TOTAL_RAM_GB >= 32 )); then OLLAMA_MEM="16G"; fi
