@@ -472,7 +472,9 @@ cd "$AI_STACK_DIR" || exit 1
 
 # Dynamic memory allocation
 TOTAL_RAM_GB=$(free -g | awk '/Mem:/ {print $2}')
-OLLAMA_MEM=$(( TOTAL_RAM_GB >= 32 ? 16 : ( TOTAL_RAM_GB >= 16 ? 8 : 4 )) )G
+OLLAMA_MEM="4G"
+if (( TOTAL_RAM_GB >= 16 )); then OLLAMA_MEM="8G"; fi
+if (( TOTAL_RAM_GB >= 32 )); then OLLAMA_MEM="16G"; fi
 log_info "Ollama memory: ${OLLAMA_MEM}"
 
 cat > docker-compose.yml << EOF
