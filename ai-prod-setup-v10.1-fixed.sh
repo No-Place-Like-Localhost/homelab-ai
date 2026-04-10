@@ -409,27 +409,63 @@ log_success "Docker is running"
 # SSH HARDENING
 # -----------------------------------------------------------------------------
 log_step "SSH Hardening"
-
 SSHD_CONFIG="/etc/ssh/sshd_config"
 [[ ! -f "${BACKUP_DIR}/sshd_config.bak" ]] && cp "$SSHD_CONFIG" "${BACKUP_DIR}/sshd_config.bak"
 
-# Safety check for SSH keys
-SSH_KEYS_EXIST=false
-for kf in ~/.ssh/authorized_keys /root/.ssh/authorized_keys; do
-    [[ -f "$kf" && -s "$kf" ]] && SSH_KEYS_EXIST=true && break
-done
+# Initialize flag
+SSH_KEYS_FOUND=false
 
-if [[ "$SSH_KEYS_EXIST" == "true" ]]; then
-    log_info "SSH keys found - safe to disable password auth"
-    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
-else
-    log_warn "NO SSH KEYS - keeping password auth enabled!"
+# 1. Check for keys in the home directory of the user who invoked sudo (if applicable)
+if [[ -n "${SUDO_USER:-}" ]]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    USER_AUTH_KEYS="${USER_HOME}/.ssh/authorized_keys"
+    
+    if [[ -f "$USER_AUTH_KEYS" && -s "$USER_AUTH_KEYS" ]]; then
+        SSH_KEYS_FOUND=true
+        log_info "SSH keys found for sudo user '$SUDO_USER' at $USER_AUTH_KEYS"
+    fi
 fi
 
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
+# 2. Check for keys in root's home directory (if running directly as root or keys exist there)
+if [[ "$SSH_KEYS_FOUND" == "false" ]]; then
+    if [[ -f /root/.ssh/authorized_keys && -s /root/.ssh/authorized_keys ]]; then
+        SSH_KEYS_FOUND=true
+        log_info "SSH keys found for root user."
+    fi
+fi
+
+# 3. Apply Configuration based on findings
+# Always enable PubkeyAuthentication
 sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' "$SSHD_CONFIG"
 
-sshd -t 2>/dev/null && systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+# Handle Password Authentication
+if [[ "$SSH_KEYS_FOUND" == "true" ]]; then
+    log_info "Keys verified. Disabling SSH password authentication."
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' "$SSHD_CONFIG"
+else
+    log_warn "------------------------------------------------------------"
+    log_warn "SECURITY ALERT: No SSH keys found!"
+    log_warn "Checked: /root/.ssh/authorized_keys"
+    [[ -n "${SUDO_USER:-}" ]] && log_warn "Checked: /home/${SUDO_USER}/.ssh/authorized_keys"
+    log_warn "Password authentication remains ENABLED to prevent lockout."
+    log_warn "Please add SSH keys manually and re-run hardening if desired."
+    log_warn "------------------------------------------------------------"
+    # Ensure password auth is definitely on
+    sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication yes/' "$SSHD_CONFIG"
+fi
+
+# Handle Root Login
+# 'prohibit-password' allows root login ONLY with keys (safer than 'yes', safer than 'no' if you need root access)
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' "$SSHD_CONFIG"
+
+# Validate and Restart
+if sshd -t; then
+    systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
+    log_success "SSH service restarted successfully."
+else
+    log_error "SSHD config syntax error! Reverting changes..."
+    cp "${BACKUP_DIR}/sshd_config.bak" "$SSHD_CONFIG"
+fi
 
 # -----------------------------------------------------------------------------
 # SECRETS
