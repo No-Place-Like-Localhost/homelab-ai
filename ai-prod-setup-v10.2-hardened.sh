@@ -31,12 +31,12 @@ SECRETS_DIR="/opt/ai-stack/secrets"
 AGENT0_DATA_DIR="/opt/ai-stack/agent0-data"
 
 # Software Versions (PINNED FOR STABILITY)
-OPENWEBUI_VERSION="v0.3.14"
-OLLAMA_VERSION="0.1.44"
-PROMETHEUS_VERSION="v2.51.0"
-GRAFANA_VERSION="10.4.0"
+OPENWEBUI_VERSION="latest"
+OLLAMA_VERSION="latest"
+PROMETHEUS_VERSION="latest"
+GRAFANA_VERSION="latest"
 NODE_EXPORTER_VERSION="v1.7.0"
-AGENT0_VERSION="v1.0.0"
+AGENT0_VERSION="latest"
 
 # PKI Settings
 CA_COUNTRY="US"
@@ -239,7 +239,7 @@ DEBIAN_FRONTEND=noninteractive apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-transport-https ca-certificates curl gnupg lsb-release \
     ufw fail2ban openssl net-tools zip unzip htop rsync bc \
-    apache2-utils unattended-upgrades apt-listchanges
+    apache2-utils unattended-upgrades apt-listchanges openssh-server
 
 cat > /etc/apt/apt.conf.d/50unattended-upgrades << 'EOF'
 Unattended-Upgrade::Allowed-Origins { "${distro_id}:${distro_codename}-security"; };
